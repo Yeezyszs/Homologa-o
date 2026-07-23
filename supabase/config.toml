@@ -1,0 +1,24 @@
+# Configuração mínima do Supabase CLI.
+# Pode ser regenerada/expandida com `supabase init` se necessário.
+project_id = "homologacao-fornecedores"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+
+[db]
+port = 54322
+major_version = 15
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+
+# Rotina diária de alertas (Milestone 8) roda via pg_cron chamando a Edge Function `alertas`.
+[edge_runtime]
+enabled = true
