@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/ui/hooks/useAuth'
+import { supabaseConfigurado } from '@/infrastructure/supabase/client'
 
 export function Login() {
   const { entrar } = useAuth()
@@ -39,6 +40,15 @@ export function Login() {
           </h1>
           <p className="text-sm text-slate-500">Acesso interno · Sumaré</p>
         </div>
+
+        {!supabaseConfigurado && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <strong>Preview sem backend.</strong> O Supabase ainda não foi
+            configurado (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY), então o
+            login e os dados não funcionam aqui. A interface está só para
+            visualização.
+          </div>
+        )}
 
         <label className="block">
           <span className="text-sm font-medium text-slate-700">E-mail</span>
