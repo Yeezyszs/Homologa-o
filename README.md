@@ -60,8 +60,8 @@ psql "$DATABASE_URL" -f supabase/seed/seed.sql   # popula o catálogo (re-execut
 | 1 | Setup (Vite + Auth + rota protegida + shell) | ✅ |
 | 2 | Schema (8 tabelas + RLS + seed) | ✅ |
 | 3 | Função de status + trigger + RPC do checklist | ✅ |
-| 4 | Catálogo (segmentos e tipos de documento) | ⏳ |
-| 5 | Fornecedores (CRUD + segmentos + risco) | 🚧 lista pronta |
-| 6 | Documentos (upload + versionamento + checklist) | ⏳ |
+| 4 | Catálogo (segmentos e tipos de documento) | ✅ |
+| 5 | Fornecedores (CRUD + segmentos + risco) | ✅ |
+| 6 | Documentos (upload + versionamento + checklist) | ✅ |
 | 7 | Dashboard + consultas | 🚧 dashboard inicial |
 | 8 | Alertas (Edge Function + `pg_cron` + e-mail) | ⏳ |
