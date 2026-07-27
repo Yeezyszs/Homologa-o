@@ -63,5 +63,5 @@ psql "$DATABASE_URL" -f supabase/seed/seed.sql   # popula o catálogo (re-execut
 | 4 | Catálogo (segmentos e tipos de documento) | ✅ |
 | 5 | Fornecedores (CRUD + segmentos + risco) | ✅ |
 | 6 | Documentos (upload + versionamento + checklist) | ✅ |
-| 7 | Dashboard + consultas | 🚧 dashboard inicial |
+| 7 | Dashboard + consultas | ✅ |
 | 8 | Alertas (Edge Function + `pg_cron` + e-mail) | ⏳ |

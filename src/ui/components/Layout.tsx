@@ -6,6 +6,7 @@ const links = [
   { to: '/fornecedores', rotulo: 'Fornecedores' },
   { to: '/segmentos', rotulo: 'Segmentos' },
   { to: '/catalogo', rotulo: 'Catálogo' },
+  { to: '/relatorios', rotulo: 'Relatórios' },
 ]
 
 export function Layout() {

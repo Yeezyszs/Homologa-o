@@ -9,6 +9,7 @@ import { FornecedorForm } from '@/ui/pages/FornecedorForm'
 import { FornecedorDetalhe } from '@/ui/pages/FornecedorDetalhe'
 import { Segmentos } from '@/ui/pages/Segmentos'
 import { Catalogo } from '@/ui/pages/Catalogo'
+import { Consultas } from '@/ui/pages/Consultas'
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/fornecedores/:id/editar" element={<FornecedorForm />} />
             <Route path="/segmentos" element={<Segmentos />} />
             <Route path="/catalogo" element={<Catalogo />} />
+            <Route path="/relatorios" element={<Consultas />} />
           </Route>
         </Routes>
       </BrowserRouter>
