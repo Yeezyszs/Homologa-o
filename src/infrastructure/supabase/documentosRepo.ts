@@ -16,6 +16,7 @@ export class DocumentosRepoSupabase implements IDocumentosRepo {
       .select('*')
       .eq('fornecedor_id', fornecedorId)
       .eq('tipo_documento_id', tipoDocumentoId)
+      .is('excluido_em', null)
       .order('data_envio', { ascending: false })
       .order('created_at', { ascending: false })
     if (error) throw error
@@ -29,17 +30,10 @@ export class DocumentosRepoSupabase implements IDocumentosRepo {
     await subirArquivo(path, arquivo)
 
     const { data: userData } = await supabase.auth.getUser()
-    const enviadoPor = userData.user?.id
 
-    // Aposenta a versão vigente anterior (mantém histórico).
-    const { error: eUpd } = await supabase
-      .from('documentos')
-      .update({ is_atual: false })
-      .eq('fornecedor_id', fornecedorId)
-      .eq('tipo_documento_id', tipoDocumentoId)
-      .eq('is_atual', true)
-    if (eUpd) throw eUpd
-
+    // Aposentar a versão anterior é responsabilidade do trigger
+    // `documentos_versiona`, que respeita `permite_multiplos`: tipos que
+    // aceitam vários arquivos mantêm todos vigentes.
     const { data, error } = await supabase
       .from('documentos')
       .insert({
@@ -48,7 +42,7 @@ export class DocumentosRepoSupabase implements IDocumentosRepo {
         arquivo_path: path,
         data_vencimento: dataVencimento ?? null,
         is_atual: true,
-        enviado_por: enviadoPor,
+        enviado_por: userData.user?.id,
       })
       .select('*')
       .single()
@@ -59,5 +53,13 @@ export class DocumentosRepoSupabase implements IDocumentosRepo {
 
   async urlArquivo(arquivoPath: string): Promise<string> {
     return urlAssinada(arquivoPath)
+  }
+
+  async excluir(documentoId: string, motivo: string): Promise<void> {
+    const { error } = await supabase.rpc('excluir_documento', {
+      p_documento_id: documentoId,
+      p_motivo: motivo,
+    })
+    if (error) throw error
   }
 }

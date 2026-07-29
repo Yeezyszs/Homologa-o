@@ -20,11 +20,11 @@ export function Modal({
       onClick={onFechar}
     >
       <div
-        className={`w-full ${largura} rounded-xl bg-white shadow-xl`}
+        className={`w-full ${largura} max-h-[90vh] overflow-y-auto rounded-card bg-white shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-          <h2 className="font-semibold text-slate-800">{titulo}</h2>
+        <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3.5">
+          <h2 className="text-[15px] font-bold text-slate-900">{titulo}</h2>
           <button
             onClick={onFechar}
             className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"

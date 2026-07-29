@@ -7,5 +7,28 @@
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-slate-50 font-sans text-slate-900 antialiased;
+}
+
+::placeholder {
+  color: #94a3b8;
+}
+
+/* Foco na cor de marca, como no design. */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #1f5b3f !important;
+  box-shadow: 0 0 0 3px rgba(31, 91, 63, 0.12);
+}
+
+@layer components {
+  .card {
+    @apply rounded-card border border-slate-200 bg-white;
+  }
+  /* Cabeçalho de tabela: caixa alta, pequeno, com tracking — padrão do design. */
+  .th {
+    @apply text-[11.5px] font-semibold uppercase tracking-[0.03em] text-slate-400;
+  }
 }

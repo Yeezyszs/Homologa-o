@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '@/ui/hooks/useAuth'
+import { iniciais } from '@/ui/theme'
 
 const links = [
   { to: '/', rotulo: 'Dashboard', end: true },
@@ -11,24 +12,29 @@ const links = [
 
 export function Layout() {
   const { user, sair } = useAuth()
+  const email = user?.email ?? ''
+  const nome = (user?.user_metadata?.nome as string | undefined) || email.split('@')[0] || 'Usuário'
+
   return (
     <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
-          <div className="font-semibold text-slate-800">
-            Homologação <span className="text-slate-400">· Sumaré</span>
+      <header className="sticky top-0 z-50 flex h-[60px] items-center justify-between gap-4 border-b border-slate-200 bg-white px-5">
+        <div className="flex min-w-0 shrink items-center gap-4">
+          <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+            <div className="h-[9px] w-[9px] shrink-0 rounded-[2px] bg-marca" />
+            <span className="text-[15px] font-bold text-slate-900">Homologação</span>
+            <span className="text-sm text-slate-500">· Sumaré</span>
           </div>
-          <nav className="flex gap-1">
+          <nav className="flex h-[60px] min-w-0 items-center overflow-hidden">
             {links.map((l) => (
               <NavLink
                 key={l.to}
                 to={l.to}
                 end={l.end}
                 className={({ isActive }) =>
-                  `rounded-md px-3 py-1.5 text-sm font-medium ${
+                  `flex h-[60px] shrink-0 items-center whitespace-nowrap border-b-2 px-[10px] text-sm font-semibold transition-colors ${
                     isActive
-                      ? 'bg-slate-900 text-white'
-                      : 'text-slate-600 hover:bg-slate-100'
+                      ? 'border-marca text-marca'
+                      : 'border-transparent text-slate-500 hover:text-slate-900'
                   }`
                 }
               >
@@ -36,18 +42,27 @@ export function Layout() {
               </NavLink>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-3 text-sm text-slate-500">
-            <span className="hidden sm:inline">{user?.email}</span>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2.5">
+          <div className="min-w-0 overflow-hidden text-right">
+            <div className="truncate text-[13px] font-semibold leading-tight text-slate-900">
+              {nome}
+            </div>
             <button
               onClick={() => void sair()}
-              className="rounded-md px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-100"
+              className="text-[11.5px] leading-tight text-slate-500 hover:text-marca"
             >
               Sair
             </button>
           </div>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-marca-claro text-[12.5px] font-bold text-marca">
+            {iniciais(nome)}
+          </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">
+
+      <main className="mx-auto max-w-[1400px] px-8 pb-16 pt-8">
         <Outlet />
       </main>
     </div>

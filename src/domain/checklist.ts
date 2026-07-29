@@ -1,6 +1,6 @@
-// Helpers puros de apresentação do checklist e do status.
-// Espelham a regra que mora no Postgres (fonte da verdade), mas aqui servem
-// só para derivar rótulos, cores e contagens na UI. Totalmente testáveis.
+// Regras puras do checklist. Espelham o que roda no Postgres (fonte da
+// verdade) e servem para derivar contagens e rótulos na UI.
+// Sem React, sem Supabase, sem classes de CSS — só regra de negócio.
 
 import type {
   EstadoItemChecklist,
@@ -19,30 +19,37 @@ export function toDateOnly(d: Date | string): string {
 
 export interface EntradaEstadoItem {
   temValidade: boolean
-  /** há uma versão vigente (is_atual) desse tipo para o fornecedor? */
-  temDocumentoAtual: boolean
-  /** data de vencimento da versão vigente, quando aplicável */
-  dataVencimento: string | null
+  /** datas de vencimento dos arquivos vigentes (vazio = nenhum arquivo) */
+  vencimentos: (string | null)[]
 }
 
 /**
- * Deriva o estado de um item do checklist.
- * Mesma lógica da RPC `get_checklist_fornecedor` no Postgres.
+ * Deriva o estado de um item do checklist a partir dos arquivos vigentes.
+ * Mesma lógica da RPC `get_checklist_fornecedor`.
  *
- * - faltando  → não há documento vigente
- * - aguardando → há documento, o tipo tem validade, mas a data ainda não foi informada
- * - vencido   → há documento, tem validade e venceu (< hoje)
- * - ok        → há documento e (não tem validade OU vencimento >= hoje)
+ * Tipos com múltiplos arquivos seguem a regra "basta um válido":
+ * o item fica `ok` se ao menos um arquivo estiver vigente.
+ *
+ * - faltando   → nenhum arquivo vigente
+ * - ok         → tipo sem validade, ou ao menos um arquivo dentro do prazo
+ * - aguardando → há arquivo, o tipo tem validade e falta informar a data
+ * - vencido    → há arquivos com data e todos já venceram
  */
 export function estadoItemChecklist(
   entrada: EntradaEstadoItem,
   hoje: Date | string = new Date(),
 ): EstadoItemChecklist {
-  const { temValidade, temDocumentoAtual, dataVencimento } = entrada
-  if (!temDocumentoAtual) return 'faltando'
+  const { temValidade, vencimentos } = entrada
+  if (vencimentos.length === 0) return 'faltando'
   if (!temValidade) return 'ok'
-  if (!dataVencimento) return 'aguardando'
-  return toDateOnly(dataVencimento) >= toDateOnly(hoje) ? 'ok' : 'vencido'
+
+  const limite = toDateOnly(hoje)
+  const temValido = vencimentos.some(
+    (v) => v !== null && toDateOnly(v) >= limite,
+  )
+  if (temValido) return 'ok'
+  if (vencimentos.some((v) => v === null)) return 'aguardando'
+  return 'vencido'
 }
 
 /** Um item obrigatório é considerado satisfeito quando está 'ok'. */
@@ -58,7 +65,7 @@ export function itemSatisfeito(item: ItemChecklist): boolean {
 export function statusPeloChecklist(itens: ItemChecklist[]): StatusFornecedor {
   const obrigatorios = itens.filter((i) => i.exigencia === 'obrigatorio')
   // "não tem nenhum documento" → nao_homologado
-  const temAlgumDocumento = itens.some((i) => i.documento_id !== null)
+  const temAlgumDocumento = itens.some((i) => i.qtd_arquivos > 0)
   if (!temAlgumDocumento) return 'nao_homologado'
   if (obrigatorios.length === 0) return 'homologado'
   return obrigatorios.every(itemSatisfeito) ? 'homologado' : 'pendente'
@@ -66,48 +73,5 @@ export function statusPeloChecklist(itens: ItemChecklist[]): StatusFornecedor {
 
 /** Quantos itens obrigatórios ainda faltam ou estão vencidos. */
 export function pendenciasObrigatorias(itens: ItemChecklist[]): ItemChecklist[] {
-  return itens.filter(
-    (i) => i.exigencia === 'obrigatorio' && !itemSatisfeito(i),
-  )
-}
-
-// ---- Rótulos e cores para a UI ----
-
-export const rotuloStatus: Record<StatusFornecedor, string> = {
-  homologado: 'Homologado',
-  pendente: 'Pendente',
-  nao_homologado: 'Não homologado',
-}
-
-export const rotuloEstadoItem: Record<EstadoItemChecklist, string> = {
-  ok: 'OK',
-  vencido: 'Vencido',
-  faltando: 'Faltando',
-  aguardando: 'Aguardando validade',
-}
-
-/** Classes Tailwind (badge) por status do fornecedor. */
-export function classesStatus(status: StatusFornecedor): string {
-  switch (status) {
-    case 'homologado':
-      return 'bg-green-100 text-green-800 ring-green-600/20'
-    case 'pendente':
-      return 'bg-amber-100 text-amber-800 ring-amber-600/20'
-    case 'nao_homologado':
-      return 'bg-red-100 text-red-800 ring-red-600/20'
-  }
-}
-
-/** Classes Tailwind (badge) por estado do item do checklist. */
-export function classesEstadoItem(estado: EstadoItemChecklist): string {
-  switch (estado) {
-    case 'ok':
-      return 'bg-green-100 text-green-800 ring-green-600/20'
-    case 'vencido':
-      return 'bg-red-100 text-red-800 ring-red-600/20'
-    case 'faltando':
-      return 'bg-slate-100 text-slate-700 ring-slate-500/20'
-    case 'aguardando':
-      return 'bg-amber-100 text-amber-800 ring-amber-600/20'
-  }
+  return itens.filter((i) => i.exigencia === 'obrigatorio' && !itemSatisfeito(i))
 }

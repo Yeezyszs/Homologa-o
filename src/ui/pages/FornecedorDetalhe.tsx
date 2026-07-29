@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { fornecedoresRepo, documentosRepo } from '@/infrastructure/repos'
-import type { Fornecedor, Segmento, ItemChecklist, Documento } from '@/domain/entities'
-import {
-  classesStatus,
-  rotuloStatus,
-  classesEstadoItem,
-  rotuloEstadoItem,
-} from '@/domain/checklist'
-import { Badge } from '@/ui/components/Badge'
+import type {
+  Fornecedor,
+  Segmento,
+  ItemChecklist,
+  ArquivoChecklist,
+  Documento,
+} from '@/domain/entities'
+import { statusMeta, estadoMeta, riscoDe, formatarData, diasAte, corVencimento } from '@/ui/theme'
+import { Pill, Dot, Card, Carregando, Erro } from '@/ui/components/ui'
 import { Modal } from '@/ui/components/Modal'
-import { Campo, Input, Botao } from '@/ui/components/form'
+import { Campo, Input, Textarea, Botao } from '@/ui/components/form'
 
 export function FornecedorDetalhe() {
   const { id } = useParams()
@@ -20,8 +21,9 @@ export function FornecedorDetalhe() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
 
-  const [upload, setUpload] = useState<ItemChecklist | null>(null)
-  const [historico, setHistorico] = useState<ItemChecklist | null>(null)
+  const [uploadDe, setUploadDe] = useState<string | null>(null)
+  const [historicoDe, setHistoricoDe] = useState<ItemChecklist | null>(null)
+  const [excluindo, setExcluindo] = useState<{ item: ItemChecklist; arquivo: ArquivoChecklist } | null>(null)
 
   const carregar = useCallback(async () => {
     if (!id) return
@@ -46,152 +48,231 @@ export function FornecedorDetalhe() {
 
   async function abrirArquivo(path: string) {
     try {
-      const url = await documentosRepo.urlArquivo(path)
-      window.open(url, '_blank', 'noopener')
+      window.open(await documentosRepo.urlArquivo(path), '_blank', 'noopener')
     } catch (e) {
       setErro((e as Error).message)
     }
   }
 
-  if (carregando) return <p className="text-slate-500">Carregando…</p>
-  if (erro) return <p className="text-red-600">Erro: {erro}</p>
-  if (!fornecedor) return <p className="text-slate-500">Fornecedor não encontrado.</p>
+  if (carregando) return <Carregando />
+  if (!fornecedor) return <Erro>{erro ?? 'Fornecedor não encontrado.'}</Erro>
+
+  const risco = riscoDe(fornecedor.classificacao_risco)
+  const meta = statusMeta[fornecedor.status]
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <Link to="/fornecedores" className="text-sm text-slate-500 hover:underline">← Fornecedores</Link>
-          <h1 className="mt-1 text-xl font-semibold text-slate-800">{fornecedor.razao_social}</h1>
-          <p className="text-sm text-slate-500">CNPJ {fornecedor.cnpj}</p>
+    <div>
+      <div className="mb-4">
+        <Link to="/fornecedores" className="text-[13px] font-semibold text-slate-500 hover:text-marca">
+          ← Fornecedores
+        </Link>
+      </div>
+
+      {erro && <Erro>{erro}</Erro>}
+
+      <Card className="mb-4 flex flex-wrap items-start justify-between gap-4 px-[26px] py-6">
+        <div className="min-w-0">
+          <div className="mb-1.5 flex flex-wrap items-center gap-3">
+            <h1 className="text-[21px] font-bold text-slate-900">{fornecedor.razao_social}</h1>
+            <Pill cls={meta.cls}>{meta.label}</Pill>
+          </div>
+          <div className="text-[13.5px] text-slate-500">
+            {fornecedor.cnpj}
+            {segmentos.length > 0 && ` · ${segmentos.map((s) => s.nome).join(', ')}`}
+          </div>
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[13px] text-slate-700">
+            {risco ? (<><Dot cor={risco.cor} />Risco {risco.label}</>) : <span className="text-slate-400">Risco não informado</span>}
+            <span className="mx-1 text-slate-300">•</span>
+            <span className="text-slate-500">Cadastrado em {formatarData(fornecedor.data_cadastro)}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge className={classesStatus(fornecedor.status)}>{rotuloStatus[fornecedor.status]}</Badge>
+        <div className="flex shrink-0 items-start gap-4">
+          <div className="text-right text-[13px] text-slate-700">
+            {fornecedor.telefone && <div className="text-slate-500">{fornecedor.telefone}</div>}
+            {fornecedor.email && <div className="text-slate-500">{fornecedor.email}</div>}
+          </div>
           <Link to={`/fornecedores/${fornecedor.id}/editar`}>
             <Botao variante="secundario">Editar</Botao>
           </Link>
         </div>
-      </div>
+      </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Dado rotulo="Telefone" valor={fornecedor.telefone || '—'} />
-        <Dado rotulo="E-mail" valor={fornecedor.email || '—'} />
-        <Dado rotulo="Risco" valor={fornecedor.classificacao_risco ?? '—'} />
-        <Dado rotulo="Cadastro" valor={fornecedor.data_cadastro} />
-      </div>
+      <Card className="px-[26px] py-[22px]">
+        <h2 className="mb-4 text-[15px] font-bold text-slate-900">Documentos exigidos</h2>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Segmentos</h2>
-        <div className="flex flex-wrap gap-2">
-          {segmentos.length === 0
-            ? <span className="text-sm text-slate-400">Nenhum segmento vinculado.</span>
-            : segmentos.map((s) => <Badge key={s.id} className="bg-slate-100 text-slate-700 ring-slate-500/20">{s.nome}</Badge>)}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Checklist de documentos</h2>
         {checklist.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-400">
+          <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-[13.5px] text-slate-400">
             Nenhum documento exigido — vincule segmentos a este fornecedor.
-          </p>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-slate-500">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Documento</th>
-                  <th className="px-4 py-2 font-medium">Exigência</th>
-                  <th className="px-4 py-2 font-medium">Estado</th>
-                  <th className="px-4 py-2 font-medium">Vencimento</th>
-                  <th className="px-4 py-2"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {checklist.map((item) => (
-                  <tr key={item.tipo_documento_id} className="hover:bg-slate-50">
-                    <td className="px-4 py-2 font-medium text-slate-800">{item.nome}</td>
-                    <td className="px-4 py-2">
-                      {item.exigencia === 'obrigatorio'
-                        ? <span className="text-slate-700">Obrigatório</span>
-                        : <span className="text-slate-400">Condicional</span>}
-                    </td>
-                    <td className="px-4 py-2">
-                      <Badge className={classesEstadoItem(item.estado)}>{rotuloEstadoItem[item.estado]}</Badge>
-                    </td>
-                    <td className="px-4 py-2 text-slate-600">{item.data_vencimento ?? '—'}</td>
-                    <td className="px-4 py-2 text-right">
-                      <div className="flex justify-end gap-2">
-                        {item.arquivo_path && (
-                          <Botao variante="secundario" onClick={() => abrirArquivo(item.arquivo_path!)}>Ver</Botao>
-                        )}
-                        {item.documento_id && (
-                          <Botao variante="secundario" onClick={() => setHistorico(item)}>Histórico</Botao>
-                        )}
-                        <Botao onClick={() => setUpload(item)}>
-                          {item.documento_id ? 'Substituir' : 'Enviar'}
-                        </Botao>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
+        ) : (
+          checklist.map((item) => (
+            <LinhaDocumento
+              key={item.tipo_documento_id}
+              item={item}
+              aberto={uploadDe === item.tipo_documento_id}
+              onToggleUpload={() =>
+                setUploadDe((v) => (v === item.tipo_documento_id ? null : item.tipo_documento_id))
+              }
+              onHistorico={() => setHistoricoDe(item)}
+              onVer={abrirArquivo}
+              onExcluir={(arquivo) => setExcluindo({ item, arquivo })}
+              fornecedorId={fornecedor.id}
+              onEnviado={async () => { setUploadDe(null); await carregar() }}
+              onErro={setErro}
+            />
+          ))
         )}
-      </section>
+      </Card>
 
-      {upload && id && (
-        <UploadModal
-          fornecedorId={id}
-          item={upload}
-          onFechar={() => setUpload(null)}
-          onEnviado={async () => { setUpload(null); await carregar() }}
-        />
-      )}
-
-      {historico && id && (
+      {historicoDe && fornecedor && (
         <HistoricoModal
-          fornecedorId={id}
-          item={historico}
-          onFechar={() => setHistorico(null)}
-          onAbrir={abrirArquivo}
+          fornecedorId={fornecedor.id}
+          item={historicoDe}
+          onFechar={() => setHistoricoDe(null)}
+          onVer={abrirArquivo}
+        />
+      )}
+
+      {excluindo && (
+        <ExcluirModal
+          item={excluindo.item}
+          arquivo={excluindo.arquivo}
+          onFechar={() => setExcluindo(null)}
+          onExcluido={async () => { setExcluindo(null); await carregar() }}
         />
       )}
     </div>
   )
 }
 
-function Dado({ rotulo, valor }: { rotulo: string; valor: string }) {
+function LinhaDocumento({
+  item,
+  aberto,
+  fornecedorId,
+  onToggleUpload,
+  onHistorico,
+  onVer,
+  onExcluir,
+  onEnviado,
+  onErro,
+}: {
+  item: ItemChecklist
+  aberto: boolean
+  fornecedorId: string
+  onToggleUpload: () => void
+  onHistorico: () => void
+  onVer: (path: string) => void
+  onExcluir: (a: ArquivoChecklist) => void
+  onEnviado: () => void
+  onErro: (m: string) => void
+}) {
+  const meta = estadoMeta[item.estado]
+  const acao = item.permite_multiplos
+    ? '+ Adicionar arquivo'
+    : item.qtd_arquivos > 0
+      ? 'Substituir'
+      : 'Enviar'
+
+  const legenda = item.permite_multiplos
+    ? item.qtd_arquivos === 0
+      ? 'Nenhum arquivo enviado · aceita vários'
+      : `${item.qtd_arquivos} arquivo(s) vigente(s) · aceita vários`
+    : item.qtd_arquivos === 0
+      ? 'Nenhum arquivo enviado'
+      : item.data_vencimento
+        ? `Válido até ${formatarData(item.data_vencimento)}`
+        : 'Enviado · sem data de validade'
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-      <div className="text-xs text-slate-500">{rotulo}</div>
-      <div className="mt-0.5 text-sm font-medium text-slate-800">{valor}</div>
+    <div className="border-b border-slate-100 py-4 last:border-0">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            {item.nome}
+            {item.exigencia === 'condicional' && (
+              <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                condicional
+              </span>
+            )}
+          </div>
+          <div className="mt-1 text-[12.5px] text-slate-500">{legenda}</div>
+        </div>
+        <Pill cls={meta.cls}>{meta.label}</Pill>
+        <div className="flex shrink-0 gap-2">
+          {item.qtd_arquivos > 0 && (
+            <Botao variante="secundario" onClick={onHistorico}>Histórico</Botao>
+          )}
+          <Botao variante="suave" onClick={onToggleUpload}>{aberto ? 'Cancelar' : acao}</Botao>
+        </div>
+      </div>
+
+      {item.arquivos.length > 0 && (
+        <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+          {item.arquivos.map((a) => {
+            const dias = diasAte(a.data_vencimento)
+            return (
+              <div
+                key={a.id}
+                className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-3.5 py-2.5 last:border-0"
+              >
+                <div className="min-w-0 text-[12.5px] text-slate-700">
+                  <span className="font-medium">{nomeArquivo(a.arquivo_path)}</span>
+                  {a.data_envio && (
+                    <span className="text-slate-400"> · enviado em {formatarData(a.data_envio)}</span>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {item.tem_validade && (
+                    <span className={`text-[12.5px] font-semibold ${corVencimento(dias)}`}>
+                      {a.data_vencimento ? `vence ${formatarData(a.data_vencimento)}` : 'sem validade'}
+                    </span>
+                  )}
+                  <Botao variante="secundario" onClick={() => onVer(a.arquivo_path)}>Ver</Botao>
+                  <Botao variante="perigo" onClick={() => onExcluir(a)}>Excluir</Botao>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {aberto && (
+        <Dropzone
+          item={item}
+          fornecedorId={fornecedorId}
+          onEnviado={onEnviado}
+          onErro={onErro}
+        />
+      )}
     </div>
   )
 }
 
-function UploadModal({
-  fornecedorId,
+function nomeArquivo(path: string): string {
+  const base = path.split('/').pop() ?? path
+  return base.replace(/^\d+-/, '')
+}
+
+function Dropzone({
   item,
-  onFechar,
+  fornecedorId,
   onEnviado,
+  onErro,
 }: {
-  fornecedorId: string
   item: ItemChecklist
-  onFechar: () => void
+  fornecedorId: string
   onEnviado: () => void
+  onErro: (m: string) => void
 }) {
   const [arquivo, setArquivo] = useState<File | null>(null)
   const [vencimento, setVencimento] = useState('')
+  const [sobre, setSobre] = useState(false)
   const [enviando, setEnviando] = useState(false)
-  const [erro, setErro] = useState<string | null>(null)
+  const inputId = `file-${item.tipo_documento_id}`
 
-  async function enviar(e: React.FormEvent) {
-    e.preventDefault()
+  async function enviar() {
     if (!arquivo) return
     setEnviando(true)
-    setErro(null)
     try {
       await documentosRepo.enviarNovaVersao({
         fornecedorId,
@@ -201,33 +282,71 @@ function UploadModal({
       })
       onEnviado()
     } catch (e) {
-      setErro((e as Error).message)
+      onErro((e as Error).message)
     } finally {
       setEnviando(false)
     }
   }
 
   return (
-    <Modal titulo={`${item.documento_id ? 'Substituir' : 'Enviar'} — ${item.nome}`} aberto onFechar={onFechar}>
-      <form onSubmit={enviar} className="space-y-4">
-        {erro && <p className="text-red-600">Erro: {erro}</p>}
-        <Campo label="Arquivo (PDF)">
-          <Input type="file" accept="application/pdf" onChange={(e) => setArquivo(e.target.files?.[0] ?? null)} required />
-        </Campo>
-        {item.tem_validade && (
-          <Campo label="Data de vencimento">
-            <Input type="date" value={vencimento} onChange={(e) => setVencimento(e.target.value)} />
-          </Campo>
+    <div className="mt-3">
+      <div
+        onDragOver={(e) => { e.preventDefault(); setSobre(true) }}
+        onDragLeave={() => setSobre(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setSobre(false)
+          const f = e.dataTransfer.files?.[0]
+          if (f) setArquivo(f)
+        }}
+        className={`rounded-[10px] border-2 border-dashed p-6 text-center transition-colors ${
+          sobre ? 'border-marca bg-marca-claro' : 'border-slate-300 bg-slate-50'
+        }`}
+      >
+        {arquivo ? (
+          <div className="text-[13.5px] font-semibold text-slate-700">{arquivo.name}</div>
+        ) : (
+          <>
+            <div className="mb-1 text-[13.5px] font-semibold text-slate-700">
+              Arraste o arquivo aqui
+            </div>
+            <div className="mb-3 text-[12.5px] text-slate-500">PDF, JPG ou PNG até 10MB</div>
+          </>
         )}
-        {item.documento_id && (
-          <p className="text-xs text-slate-500">A versão atual será arquivada no histórico (nada é apagado).</p>
-        )}
-        <div className="flex justify-end gap-2 pt-2">
-          <Botao type="button" variante="secundario" onClick={onFechar}>Cancelar</Botao>
-          <Botao type="submit" disabled={enviando || !arquivo}>{enviando ? 'Enviando…' : 'Enviar'}</Botao>
-        </div>
-      </form>
-    </Modal>
+        <input
+          id={inputId}
+          type="file"
+          accept="application/pdf,image/jpeg,image/png"
+          className="hidden"
+          onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+        />
+        <label
+          htmlFor={inputId}
+          className="mt-2 inline-block cursor-pointer rounded-lg bg-marca px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-marca-escuro"
+        >
+          {arquivo ? 'Trocar arquivo' : 'Selecionar arquivo'}
+        </label>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+        {item.tem_validade ? (
+          <div className="w-52">
+            <Campo label="Data de vencimento">
+              <Input type="date" value={vencimento} onChange={(e) => setVencimento(e.target.value)} />
+            </Campo>
+          </div>
+        ) : <div />}
+        <Botao onClick={enviar} disabled={!arquivo || enviando}>
+          {enviando ? 'Enviando…' : 'Enviar documento'}
+        </Botao>
+      </div>
+
+      {!item.permite_multiplos && item.qtd_arquivos > 0 && (
+        <p className="mt-2 text-xs text-slate-500">
+          A versão atual será arquivada no histórico — nada é apagado.
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -235,12 +354,12 @@ function HistoricoModal({
   fornecedorId,
   item,
   onFechar,
-  onAbrir,
+  onVer,
 }: {
   fornecedorId: string
   item: ItemChecklist
   onFechar: () => void
-  onAbrir: (path: string) => void
+  onVer: (p: string) => void
 }) {
   const [versoes, setVersoes] = useState<Documento[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -259,23 +378,95 @@ function HistoricoModal({
       {carregando ? (
         <p className="text-slate-400">Carregando…</p>
       ) : versoes.length === 0 ? (
-        <p className="text-slate-400">Nenhuma versão.</p>
+        <p className="text-slate-400">Nenhuma versão registrada.</p>
       ) : (
         <ul className="divide-y divide-slate-100">
           {versoes.map((v) => (
-            <li key={v.id} className="flex items-center justify-between py-2 text-sm">
-              <div>
-                <div className="text-slate-800">
-                  Enviado em {v.data_envio}
-                  {v.is_atual && <Badge className="ml-2 bg-green-100 text-green-800 ring-green-600/20">atual</Badge>}
+            <li key={v.id} className="flex items-center justify-between gap-3 py-2.5 text-[13px]">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-slate-800">
+                  <span className="truncate">{nomeArquivo(v.arquivo_path)}</span>
+                  {v.is_atual && (
+                    <Pill cls={estadoMeta.ok.cls}>vigente</Pill>
+                  )}
                 </div>
-                {v.data_vencimento && <div className="text-xs text-slate-500">Vence em {v.data_vencimento}</div>}
+                <div className="mt-0.5 text-xs text-slate-500">
+                  Enviado em {formatarData(v.data_envio)}
+                  {v.data_vencimento && ` · vence ${formatarData(v.data_vencimento)}`}
+                </div>
               </div>
-              <Botao variante="secundario" onClick={() => onAbrir(v.arquivo_path)}>Ver</Botao>
+              <Botao variante="secundario" onClick={() => onVer(v.arquivo_path)}>Ver</Botao>
             </li>
           ))}
         </ul>
       )}
+    </Modal>
+  )
+}
+
+function ExcluirModal({
+  item,
+  arquivo,
+  onFechar,
+  onExcluido,
+}: {
+  item: ItemChecklist
+  arquivo: ArquivoChecklist
+  onFechar: () => void
+  onExcluido: () => void
+}) {
+  const [motivo, setMotivo] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function confirmar(e: React.FormEvent) {
+    e.preventDefault()
+    setEnviando(true)
+    setErro(null)
+    try {
+      await documentosRepo.excluir(arquivo.id, motivo)
+      onExcluido()
+    } catch (e) {
+      setErro((e as Error).message)
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <Modal titulo="Excluir documento" aberto onFechar={onFechar}>
+      <form onSubmit={confirmar} className="space-y-4">
+        {erro && <Erro>{erro}</Erro>}
+        <p className="text-[13.5px] text-slate-600">
+          Excluir <strong className="font-semibold text-slate-900">{nomeArquivo(arquivo.arquivo_path)}</strong>{' '}
+          de <strong className="font-semibold text-slate-900">{item.nome}</strong>?
+        </p>
+        <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+          O arquivo sai da tela e do cálculo de status, mas o registro permanece no banco com
+          autor, data e motivo — a rastreabilidade da auditoria é preservada.
+          {!item.permite_multiplos && ' Se houver uma versão anterior, ela volta a ser a vigente.'}
+        </p>
+        <Campo label="Motivo da exclusão">
+          <Textarea
+            rows={3}
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            required
+            autoFocus
+            placeholder="Ex.: documento divergente, lançado no fornecedor errado…"
+          />
+        </Campo>
+        <div className="flex justify-end gap-2 pt-1">
+          <Botao type="button" variante="secundario" onClick={onFechar}>Cancelar</Botao>
+          <button
+            type="submit"
+            disabled={enviando || motivo.trim().length === 0}
+            className="rounded-lg bg-[#B91C1C] px-3.5 py-2 text-[12.5px] font-semibold text-white hover:bg-[#991B1B] disabled:opacity-60"
+          >
+            {enviando ? 'Excluindo…' : 'Excluir documento'}
+          </button>
+        </div>
+      </form>
     </Modal>
   )
 }

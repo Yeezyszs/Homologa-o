@@ -35,6 +35,8 @@ export interface TipoDocumento {
   nome: string
   tem_validade: boolean
   origem: OrigemDocumento
+  /** aceita vários arquivos vigentes ao mesmo tempo (laudos, certificações…) */
+  permite_multiplos: boolean
   ativo: boolean
   created_at?: string
 }
@@ -67,17 +69,46 @@ export interface Documento {
   data_vencimento: string | null
   is_atual: boolean
   enviado_por: string
+  /** soft delete — preenchido quando o documento foi excluído */
+  excluido_em?: string | null
+  excluido_por?: string | null
+  motivo_exclusao?: string | null
   created_at?: string
 }
 
-/** Linha retornada pela RPC `get_checklist_fornecedor`. */
+/** Um arquivo vigente dentro de um item do checklist. */
+export interface ArquivoChecklist {
+  id: string
+  arquivo_path: string
+  data_envio: string
+  data_vencimento: string | null
+}
+
+/** Linha retornada pela RPC `get_checklist_fornecedor` (uma por tipo exigido). */
 export interface ItemChecklist {
   tipo_documento_id: string
   nome: string
   exigencia: Exigencia
   tem_validade: boolean
+  permite_multiplos: boolean
   estado: EstadoItemChecklist
   data_vencimento: string | null
   arquivo_path: string | null
   documento_id: string | null
+  qtd_arquivos: number
+  /** todos os arquivos vigentes deste tipo, mais recente primeiro */
+  arquivos: ArquivoChecklist[]
+}
+
+/** Linha da RPC `get_checklist_geral` — checklist de todos os fornecedores. */
+export interface ItemChecklistGeral {
+  fornecedor_id: string
+  fornecedor_nome: string
+  status_fornecedor: StatusFornecedor
+  tipo_documento_id: string
+  documento_nome: string
+  exigencia: Exigencia
+  tem_validade: boolean
+  estado: EstadoItemChecklist
+  data_vencimento: string | null
 }

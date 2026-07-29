@@ -4,6 +4,7 @@ import { fornecedoresRepo, catalogoRepo } from '@/infrastructure/repos'
 import type { Segmento, ClassificacaoRisco } from '@/domain/entities'
 import type { DadosFornecedor } from '@/application/repositories'
 import { Campo, Input, Select, Botao, RISCOS } from '@/ui/components/form'
+import { Cabecalho, Carregando, Erro } from '@/ui/components/ui'
 
 const vazio: DadosFornecedor = {
   razao_social: '',
@@ -83,17 +84,18 @@ export function FornecedorForm() {
     }
   }
 
-  if (carregando) return <p className="text-slate-500">Carregando…</p>
+  if (carregando) return <Carregando />
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <h1 className="text-xl font-semibold text-slate-800">
-        {editando ? 'Editar fornecedor' : 'Novo fornecedor'}
-      </h1>
+    <div className="mx-auto max-w-2xl">
+      <Cabecalho
+        titulo={editando ? 'Editar fornecedor' : 'Novo fornecedor'}
+        subtitulo="Os segmentos definem quais documentos serão exigidos"
+      />
 
-      {erro && <p className="text-red-600">Erro: {erro}</p>}
+      {erro && <Erro>{erro}</Erro>}
 
-      <form onSubmit={salvar} className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+      <form onSubmit={salvar} className="card space-y-4 p-6">
         <Campo label="Razão social">
           <Input value={form.razao_social} onChange={(e) => setForm({ ...form, razao_social: e.target.value })} required autoFocus />
         </Campo>

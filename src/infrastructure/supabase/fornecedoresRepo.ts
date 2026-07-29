@@ -4,9 +4,49 @@ import type {
   FiltroFornecedores,
   DadosFornecedor,
 } from '@/application/repositories'
-import type { Fornecedor, Segmento, ItemChecklist } from '@/domain/entities'
+import type {
+  Fornecedor,
+  Segmento,
+  ItemChecklist,
+  ItemChecklistGeral,
+  ArquivoChecklist,
+} from '@/domain/entities'
 
 const CAMPOS = 'id, razao_social, cnpj, telefone, email, classificacao_risco, status, data_cadastro, created_at'
+
+/**
+ * Adapta a linha da RPC ao tipo do domínio. Tolera o formato antigo (uma
+ * versão por tipo, sem a coluna `arquivos`) para a UI não quebrar caso a
+ * migration 0004 ainda não tenha sido aplicada no ambiente.
+ */
+function normalizarItem(linha: Record<string, unknown>): ItemChecklist {
+  const arquivos = (linha.arquivos as ArquivoChecklist[] | undefined) ?? []
+  const legado: ArquivoChecklist[] =
+    arquivos.length === 0 && linha.documento_id
+      ? [
+          {
+            id: linha.documento_id as string,
+            arquivo_path: linha.arquivo_path as string,
+            data_envio: '',
+            data_vencimento: (linha.data_vencimento as string | null) ?? null,
+          },
+        ]
+      : arquivos
+
+  return {
+    tipo_documento_id: linha.tipo_documento_id as string,
+    nome: linha.nome as string,
+    exigencia: linha.exigencia as ItemChecklist['exigencia'],
+    tem_validade: Boolean(linha.tem_validade),
+    permite_multiplos: Boolean(linha.permite_multiplos),
+    estado: linha.estado as ItemChecklist['estado'],
+    data_vencimento: (linha.data_vencimento as string | null) ?? null,
+    arquivo_path: (linha.arquivo_path as string | null) ?? null,
+    documento_id: (linha.documento_id as string | null) ?? null,
+    qtd_arquivos: (linha.qtd_arquivos as number | undefined) ?? legado.length,
+    arquivos: legado,
+  }
+}
 
 export class FornecedoresRepoSupabase implements IFornecedoresRepo {
   async listar(filtro: FiltroFornecedores = {}): Promise<Fornecedor[]> {
@@ -51,6 +91,20 @@ export class FornecedoresRepoSupabase implements IFornecedoresRepo {
     return (data ?? []).map((r: any) => r.segmentos as Segmento)
   }
 
+  async mapaSegmentos(): Promise<Record<string, string[]>> {
+    const { data, error } = await supabase
+      .from('fornecedor_segmentos')
+      .select('fornecedor_id, segmentos(nome)')
+    if (error) throw error
+    const mapa: Record<string, string[]> = {}
+    for (const linha of (data ?? []) as any[]) {
+      const nome = linha.segmentos?.nome
+      if (!nome) continue
+      ;(mapa[linha.fornecedor_id] ??= []).push(nome)
+    }
+    return mapa
+  }
+
   async criar(dados: DadosFornecedor): Promise<Fornecedor> {
     const { data, error } = await supabase
       .from('fornecedores')
@@ -91,7 +145,13 @@ export class FornecedoresRepoSupabase implements IFornecedoresRepo {
       p_fornecedor_id: fornecedorId,
     })
     if (error) throw error
-    return (data ?? []) as ItemChecklist[]
+    return ((data ?? []) as Record<string, unknown>[]).map(normalizarItem)
+  }
+
+  async checklistGeral(): Promise<ItemChecklistGeral[]> {
+    const { data, error } = await supabase.rpc('get_checklist_geral')
+    if (error) throw error
+    return (data ?? []) as ItemChecklistGeral[]
   }
 
   /** Substitui o conjunto de segmentos vinculados pelo informado. */

@@ -10,15 +10,19 @@ import type { ItemChecklist } from '@/domain/entities'
 const HOJE = '2026-07-23'
 
 function item(p: Partial<ItemChecklist>): ItemChecklist {
+  const qtd = p.qtd_arquivos ?? (p.arquivos?.length || 0)
   return {
     tipo_documento_id: p.tipo_documento_id ?? crypto.randomUUID(),
     nome: p.nome ?? 'Documento',
     exigencia: p.exigencia ?? 'obrigatorio',
     tem_validade: p.tem_validade ?? false,
+    permite_multiplos: p.permite_multiplos ?? false,
     estado: p.estado ?? 'faltando',
     data_vencimento: p.data_vencimento ?? null,
     arquivo_path: p.arquivo_path ?? null,
     documento_id: p.documento_id ?? null,
+    qtd_arquivos: qtd,
+    arquivos: p.arquivos ?? [],
   }
 }
 
@@ -29,58 +33,54 @@ describe('toDateOnly', () => {
 })
 
 describe('estadoItemChecklist', () => {
-  it('faltando quando não há documento vigente', () => {
-    expect(
-      estadoItemChecklist(
-        { temValidade: true, temDocumentoAtual: false, dataVencimento: null },
-        HOJE,
-      ),
-    ).toBe('faltando')
+  it('faltando quando não há nenhum arquivo vigente', () => {
+    expect(estadoItemChecklist({ temValidade: true, vencimentos: [] }, HOJE)).toBe('faltando')
   })
 
-  it('ok quando há documento e o tipo não tem validade', () => {
-    expect(
-      estadoItemChecklist(
-        { temValidade: false, temDocumentoAtual: true, dataVencimento: null },
-        HOJE,
-      ),
-    ).toBe('ok')
+  it('ok quando há arquivo e o tipo não tem validade', () => {
+    expect(estadoItemChecklist({ temValidade: false, vencimentos: [null] }, HOJE)).toBe('ok')
   })
 
   it('aguardando quando tem validade mas a data não foi informada', () => {
-    expect(
-      estadoItemChecklist(
-        { temValidade: true, temDocumentoAtual: true, dataVencimento: null },
-        HOJE,
-      ),
-    ).toBe('aguardando')
+    expect(estadoItemChecklist({ temValidade: true, vencimentos: [null] }, HOJE)).toBe('aguardando')
   })
 
   it('ok quando vence hoje (>= hoje)', () => {
-    expect(
-      estadoItemChecklist(
-        { temValidade: true, temDocumentoAtual: true, dataVencimento: HOJE },
-        HOJE,
-      ),
-    ).toBe('ok')
+    expect(estadoItemChecklist({ temValidade: true, vencimentos: [HOJE] }, HOJE)).toBe('ok')
   })
 
   it('ok quando vence no futuro', () => {
-    expect(
-      estadoItemChecklist(
-        { temValidade: true, temDocumentoAtual: true, dataVencimento: '2026-12-31' },
-        HOJE,
-      ),
-    ).toBe('ok')
+    expect(estadoItemChecklist({ temValidade: true, vencimentos: ['2026-12-31'] }, HOJE)).toBe('ok')
   })
 
   it('vencido quando a data já passou', () => {
+    expect(estadoItemChecklist({ temValidade: true, vencimentos: ['2026-07-22'] }, HOJE)).toBe('vencido')
+  })
+
+  // --- múltiplos arquivos: "basta um válido" ---
+
+  it('ok quando um dos arquivos está válido e outro vencido', () => {
     expect(
-      estadoItemChecklist(
-        { temValidade: true, temDocumentoAtual: true, dataVencimento: '2026-07-22' },
-        HOJE,
-      ),
+      estadoItemChecklist({ temValidade: true, vencimentos: ['2026-01-01', '2026-12-31'] }, HOJE),
+    ).toBe('ok')
+  })
+
+  it('vencido quando todos os arquivos venceram', () => {
+    expect(
+      estadoItemChecklist({ temValidade: true, vencimentos: ['2026-07-01', '2026-07-22'] }, HOJE),
     ).toBe('vencido')
+  })
+
+  it('ok quando um arquivo está válido e outro sem data', () => {
+    expect(
+      estadoItemChecklist({ temValidade: true, vencimentos: [null, '2026-12-31'] }, HOJE),
+    ).toBe('ok')
+  })
+
+  it('aguardando quando os vencidos convivem com um sem data informada', () => {
+    expect(
+      estadoItemChecklist({ temValidade: true, vencimentos: ['2026-07-01', null] }, HOJE),
+    ).toBe('aguardando')
   })
 })
 
@@ -95,7 +95,7 @@ describe('statusPeloChecklist', () => {
 
   it('pendente quando falta algum obrigatório', () => {
     const itens = [
-      item({ exigencia: 'obrigatorio', estado: 'ok', documento_id: 'a' }),
+      item({ exigencia: 'obrigatorio', estado: 'ok', qtd_arquivos: 1 }),
       item({ exigencia: 'obrigatorio', estado: 'faltando' }),
     ]
     expect(statusPeloChecklist(itens)).toBe('pendente')
@@ -103,28 +103,23 @@ describe('statusPeloChecklist', () => {
 
   it('pendente quando um obrigatório está vencido', () => {
     const itens = [
-      item({ exigencia: 'obrigatorio', estado: 'ok', documento_id: 'a' }),
-      item({
-        exigencia: 'obrigatorio',
-        estado: 'vencido',
-        tem_validade: true,
-        documento_id: 'b',
-      }),
+      item({ exigencia: 'obrigatorio', estado: 'ok', qtd_arquivos: 1 }),
+      item({ exigencia: 'obrigatorio', estado: 'vencido', tem_validade: true, qtd_arquivos: 1 }),
     ]
     expect(statusPeloChecklist(itens)).toBe('pendente')
   })
 
   it('homologado quando todos os obrigatórios estão ok', () => {
     const itens = [
-      item({ exigencia: 'obrigatorio', estado: 'ok', documento_id: 'a' }),
-      item({ exigencia: 'obrigatorio', estado: 'ok', documento_id: 'b' }),
+      item({ exigencia: 'obrigatorio', estado: 'ok', qtd_arquivos: 1 }),
+      item({ exigencia: 'obrigatorio', estado: 'ok', qtd_arquivos: 2, permite_multiplos: true }),
     ]
     expect(statusPeloChecklist(itens)).toBe('homologado')
   })
 
   it('ignora condicionais: condicional faltando não impede homologação', () => {
     const itens = [
-      item({ exigencia: 'obrigatorio', estado: 'ok', documento_id: 'a' }),
+      item({ exigencia: 'obrigatorio', estado: 'ok', qtd_arquivos: 1 }),
       item({ exigencia: 'condicional', estado: 'faltando' }),
     ]
     expect(statusPeloChecklist(itens)).toBe('homologado')
@@ -134,8 +129,8 @@ describe('statusPeloChecklist', () => {
 describe('pendenciasObrigatorias', () => {
   it('retorna só os obrigatórios não satisfeitos', () => {
     const itens = [
-      item({ exigencia: 'obrigatorio', estado: 'ok', documento_id: 'a', nome: 'A' }),
-      item({ exigencia: 'obrigatorio', estado: 'vencido', documento_id: 'b', nome: 'B' }),
+      item({ exigencia: 'obrigatorio', estado: 'ok', qtd_arquivos: 1, nome: 'A' }),
+      item({ exigencia: 'obrigatorio', estado: 'vencido', qtd_arquivos: 1, nome: 'B' }),
       item({ exigencia: 'obrigatorio', estado: 'faltando', nome: 'C' }),
       item({ exigencia: 'condicional', estado: 'faltando', nome: 'D' }),
     ]

@@ -27,6 +27,30 @@ Clean Architecture proporcional ao projeto:
 (`recalcular_status_fornecedor`), não no front. O trigger em `documentos` e o
 cron de alertas leem sempre o mesmo resultado materializado.
 
+## Design
+
+A UI segue o design "Homologacao Sumare" (Claude Design). Os tokens vivem em
+`tailwind.config.js` (verde de marca) e `src/ui/theme.ts` (status, risco,
+formatação de datas).
+
+- **Marca:** verde `#1F5B3F` — nav ativa, links, botões primários e foco. Usado
+  com moderação: ação e navegação, nunca decoração.
+- **Status** (esmeralda / âmbar / vermelho) e **risco** (cinza / azul / roxo)
+  usam paletas **diferentes** de propósito, para as duas colunas nunca se
+  confundirem na tabela.
+- Cards: radius 12px, borda 1px, sem sombra pesada. Modo claro apenas.
+
+## Regras de documento
+
+- **Múltiplos arquivos:** tipos com `permite_multiplos` (ficha técnica, laudos,
+  certificações) aceitam vários arquivos vigentes ao mesmo tempo. O item do
+  checklist fica OK quando **ao menos um** arquivo está válido — mesma regra do
+  `recalcular_status_fornecedor`. O flag é editável na tela de Catálogo.
+- **Exclusão:** documento lançado errado é removido por **soft delete**
+  (`excluir_documento`), com motivo obrigatório. O registro permanece no banco
+  com autor, data e motivo — a rastreabilidade exigida em segurança de alimentos
+  é preservada. Em tipos de arquivo único, a versão anterior volta a ser vigente.
+
 ## Rodando o frontend
 
 ```bash
@@ -52,6 +76,13 @@ psql "$DATABASE_URL" -f supabase/seed/seed.sql   # popula o catálogo (re-execut
 - `0001_schema.sql` — 8 tabelas + RLS (apenas autenticados) + bucket de Storage.
 - `0002_status.sql` — `recalcular_status_fornecedor`, trigger em `documentos` e
   a RPC `get_checklist_fornecedor` consumida pela UI.
+- `0003_hardening_rpc_grants.sql` — fecha as funções `SECURITY DEFINER` para `anon`.
+- `0004_multiplos_e_exclusao.sql` — `permite_multiplos`, soft delete de documento
+  (`excluir_documento`), checklist agregando vários arquivos e a RPC
+  `get_checklist_geral` que alimenta dashboard e relatórios.
+
+O arquivo `supabase/setup_completo.sql` junta todas as migrations e o seed para
+aplicar de uma vez em um projeto novo pelo SQL Editor.
 
 ## Status dos milestones
 

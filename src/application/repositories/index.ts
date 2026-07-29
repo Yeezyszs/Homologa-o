@@ -8,6 +8,7 @@ import type {
   SegmentoDocumento,
   Documento,
   ItemChecklist,
+  ItemChecklistGeral,
   ClassificacaoRisco,
   CategoriaSegmento,
   Exigencia,
@@ -33,10 +34,17 @@ export interface IFornecedoresRepo {
   listar(filtro?: FiltroFornecedores): Promise<Fornecedor[]>
   obter(id: string): Promise<Fornecedor | null>
   segmentosDo(fornecedorId: string): Promise<Segmento[]>
+  /** Nomes dos segmentos de todos os fornecedores, em uma única consulta. */
+  mapaSegmentos(): Promise<Record<string, string[]>>
   criar(dados: DadosFornecedor): Promise<Fornecedor>
   atualizar(id: string, dados: DadosFornecedor): Promise<Fornecedor>
   /** Checklist resolvido pela RPC do Postgres (a UI só consome). */
   checklist(fornecedorId: string): Promise<ItemChecklist[]>
+  /**
+   * Checklist consolidado de todos os fornecedores — alimenta dashboard
+   * e relatórios com uma única consulta.
+   */
+  checklistGeral(): Promise<ItemChecklistGeral[]>
 }
 
 export interface NovaVersaoDocumento {
@@ -53,6 +61,12 @@ export interface IDocumentosRepo {
   enviarNovaVersao(entrada: NovaVersaoDocumento): Promise<Documento>
   /** URL assinada para baixar/visualizar um arquivo do Storage. */
   urlArquivo(arquivoPath: string): Promise<string>
+  /**
+   * Exclusão de um documento lançado errado (soft delete): sai da tela e do
+   * cálculo de status, mas o registro fica no banco com autor e motivo.
+   * O motivo é obrigatório — é ele que sustenta a auditoria.
+   */
+  excluir(documentoId: string, motivo: string): Promise<void>
 }
 
 export interface DadosSegmento {
@@ -65,6 +79,8 @@ export interface DadosTipoDocumento {
   nome: string
   tem_validade: boolean
   origem: OrigemDocumento
+  /** aceita vários arquivos vigentes ao mesmo tempo */
+  permite_multiplos: boolean
   ativo?: boolean
 }
 
