@@ -15,6 +15,39 @@ if (!supabaseConfigurado) {
   )
 }
 
+/**
+ * Alguns nós da API do Supabase ficam com o relógio levemente atrasado em
+ * relação ao servidor de Auth. Quando isso acontece, o token recém-emitido é
+ * recusado com 401 "JWT issued at future" — de forma intermitente, às vezes
+ * só em uma das requisições disparadas em paralelo.
+ *
+ * Como o desvio é de poucos segundos e some sozinho, repetimos uma única vez
+ * o request afetado em vez de estourar o erro na cara do usuário. Só entram
+ * no retry os 401 com essa assinatura; credencial inválida falha na hora.
+ */
+const RETRY_MS = 1500
+
+function ehDesvioDeRelogio(corpo: string): boolean {
+  return /issued at future|PGRST301/i.test(corpo)
+}
+
+const fetchTolerante: typeof fetch = async (input, init) => {
+  const resposta = await fetch(input, init)
+  if (resposta.status !== 401) return resposta
+
+  let corpo = ''
+  try {
+    corpo = await resposta.clone().text()
+  } catch {
+    return resposta
+  }
+  if (!ehDesvioDeRelogio(corpo)) return resposta
+
+  console.warn('Supabase recusou o token por desvio de relógio; repetindo…')
+  await new Promise((r) => setTimeout(r, RETRY_MS))
+  return fetch(input, init)
+}
+
 export const supabase = createClient(
   url || 'http://localhost:54321',
   anonKey || 'chave-anon-nao-configurada',
@@ -23,6 +56,7 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
     },
+    global: { fetch: fetchTolerante },
   },
 )
 

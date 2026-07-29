@@ -26,6 +26,8 @@ export function Dashboard() {
   const [vinculos, setVinculos] = useState<Record<string, string[]>>({})
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
+  /** o checklist não pôde ser lido — não dá para afirmar que está tudo em dia */
+  const [checklistIndisponivel, setChecklistIndisponivel] = useState(false)
 
   useEffect(() => {
     let vivo = true
@@ -35,13 +37,13 @@ export function Dashboard() {
           fornecedoresRepo.listar(),
           catalogoRepo.listarSegmentos(),
         ])
-        // O checklist geral depende da migration 0004; se ainda não estiver
-        // aplicada, o painel continua funcionando sem a seção de atenção.
+        // Se o checklist falhar, sinalizamos: um painel de compliance não pode
+        // dizer "tudo em dia" quando na verdade não conseguiu consultar.
         let geral: ItemChecklistGeral[] = []
         try {
           geral = await fornecedoresRepo.checklistGeral()
         } catch {
-          geral = []
+          if (vivo) setChecklistIndisponivel(true)
         }
         const porFornecedor = await fornecedoresRepo.mapaSegmentos()
         if (!vivo) return
@@ -136,22 +138,34 @@ export function Dashboard() {
         <Kpi rotulo="Fornecedores" valor={kpis.total} />
         <Kpi rotulo="Homologados" valor={kpis.homologados} cor="text-[#047857]" />
         <Kpi rotulo="Pendentes" valor={kpis.pendentes} cor="text-[#B45309]" />
-        <Kpi rotulo="Documentos vencidos" valor={kpis.docsVencidos} cor="text-[#B91C1C]" />
+        <Kpi
+          rotulo="Documentos vencidos"
+          valor={checklistIndisponivel ? '—' : kpis.docsVencidos}
+          cor="text-[#B91C1C]"
+        />
       </div>
 
       <Card className="mb-5 px-[22px] py-5">
         <TituloCard
           extra={
             <span className="text-[12.5px] text-slate-500">
-              {atencao.length === 1
-                ? '1 item precisa de atenção'
-                : `${atencao.length} itens precisam de atenção`}
+              {checklistIndisponivel
+                ? 'não foi possível verificar'
+                : atencao.length === 1
+                  ? '1 item precisa de atenção'
+                  : `${atencao.length} itens precisam de atenção`}
             </span>
           }
         >
           Ação necessária
         </TituloCard>
-        {atencao.length === 0 ? (
+        {checklistIndisponivel ? (
+          <div className="rounded-lg border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-[13px] text-[#B45309]">
+            Não foi possível consultar os documentos agora, então esta lista pode estar
+            incompleta. <strong className="font-semibold">Não considere como "tudo em dia".</strong>{' '}
+            Recarregue a página para tentar de novo.
+          </div>
+        ) : atencao.length === 0 ? (
           <div className="py-[18px] text-[13.5px] text-slate-500">
             Nenhum item pendente no momento — tudo em dia.
           </div>
